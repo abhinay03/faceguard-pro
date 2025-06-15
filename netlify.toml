@@ -1,6 +1,6 @@
 [build]
   base = "."
-  command = "cd frontend && npm install --legacy-peer-deps --force --no-audit && npm run build"
+  command = "cd frontend && npm install --legacy-peer-deps --force --no-audit && CI=false ./node_modules/.bin/cross-env GENERATE_SOURCEMAP=false react-scripts build"
   publish = "frontend/build"
   functions = "netlify/functions"
 
