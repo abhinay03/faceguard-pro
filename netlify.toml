@@ -1,14 +1,15 @@
 [build]
   base = "."
-  command = "cd frontend && npm install --legacy-peer-deps --force && npm run build"
+  command = "cd frontend && npm install --legacy-peer-deps --force --no-audit && npm run build"
   publish = "frontend/build"
   functions = "netlify/functions"
 
 [build.environment]
   NODE_VERSION = "18"
-  NPM_FLAGS = "--legacy-peer-deps --force"
+  NPM_FLAGS = "--legacy-peer-deps --force --no-audit"
   GENERATE_SOURCEMAP = "false"
   CI = "false"
+  NODE_ENV = "production"
 
 [[redirects]]
   from = "/*"
