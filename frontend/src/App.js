@@ -1,11 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './App.css';
 
-// API URL configuration
-const API_URL = process.env.NODE_ENV === 'development' 
-  ? 'http://localhost:9999/.netlify/functions/face-detection'
-  : '/.netlify/functions/face-detection';
-
 function App() {
   const [name, setName] = useState('');
   const [message, setMessage] = useState('');
@@ -16,8 +11,6 @@ function App() {
   const [profilePicture, setProfilePicture] = useState(null);
   const [facePosition, setFacePosition] = useState({ x: 0, y: 0, scale: 1 });
   const [isFaceCentered, setIsFaceCentered] = useState(false);
-  const [isDetecting, setIsDetecting] = useState(false);
-  const [detectionMessage, setDetectionMessage] = useState('');
   const [faceQuality, setFaceQuality] = useState({
     eyesOpen: false,
     isSmiling: false,
@@ -40,63 +33,76 @@ function App() {
     }
   };
 
-  const startFaceDetection = async () => {
-    if (!videoRef.current) return;
-    
-    setIsDetecting(true);
-    setDetectionMessage('Starting face detection...');
-    
-    try {
-      const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(videoRef.current, 0, 0);
-      
-      const imageData = canvas.toDataURL('image/jpeg');
-      
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ image: imageData }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('Face detection response:', data);
-      
-      setIsFaceDetected(data.faceDetected);
-      if (data.faceQuality) {
-        setFaceQuality(data.faceQuality);
-        if (data.message) {
-          setMessage(data.message);
-        } else {
-          setMessage('');
-        }
-      } else if (data.message) {
-        setMessage(data.message);
-      }
-
-      // Update face position if detected
-      if (data.facePosition) {
-        setFacePosition(data.facePosition);
-        // Check if face is centered (within 10% of center)
-        const isCentered = 
-          Math.abs(data.facePosition.x) < 0.1 && 
-          Math.abs(data.facePosition.y) < 0.1 &&
-          Math.abs(data.facePosition.scale - 1) < 0.1;
-        setIsFaceCentered(isCentered);
-      }
-    } catch (err) {
-      console.error('Face detection error:', err);
-      setMessage(err.message || 'Error detecting face');
-      setIsDetecting(false);
+  const startFaceDetection = () => {
+    if (detectionInterval.current) {
+      clearInterval(detectionInterval.current);
     }
+
+    detectionInterval.current = setInterval(async () => {
+      if (!videoRef.current || !canvasRef.current) {
+        console.log('Video or canvas ref not available');
+        return;
+      }
+
+      try {
+        const context = canvasRef.current.getContext('2d');
+        canvasRef.current.width = videoRef.current.videoWidth;
+        canvasRef.current.height = videoRef.current.videoHeight;
+        context.drawImage(videoRef.current, 0, 0);
+
+        const imageData = canvasRef.current.toDataURL('image/jpeg', 0.8);
+        console.log('Sending image for detection, size:', imageData.length);
+
+        const response = await fetch('http://localhost:5000/api/detect-face', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            image: imageData
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('Face detection response:', data);
+        
+        setIsFaceDetected(data.faceDetected);
+        if (data.faceQuality) {
+          setFaceQuality(data.faceQuality);
+          if (data.message) {
+            setMessage(data.message);
+          } else {
+            setMessage('');
+          }
+        } else if (data.message) {
+          setMessage(data.message);
+        }
+
+        // Update face position if detected
+        if (data.facePosition) {
+          setFacePosition(data.facePosition);
+          // Check if face is centered (within 10% of center)
+          const isCentered = 
+            Math.abs(data.facePosition.x) < 0.1 && 
+            Math.abs(data.facePosition.y) < 0.1 &&
+            Math.abs(data.facePosition.scale - 1) < 0.1;
+          setIsFaceCentered(isCentered);
+        }
+      } catch (err) {
+        console.error('Face detection error:', err);
+        if (err.message.includes('Failed to fetch') || err.message.includes('ERR_CONNECTION_REFUSED')) {
+          setMessage('Cannot connect to server. Please make sure the backend server is running.');
+          stopFaceDetection();
+        } else {
+          setIsFaceDetected(false);
+          setMessage(err.message || 'Error detecting face');
+        }
+      }
+    }, 500);
   };
 
   const stopFaceDetection = () => {
@@ -140,27 +146,34 @@ function App() {
     setMessage('Processing...');
     
     try {
-      const response = await fetch(API_URL, {
+      const response = await fetch('http://localhost:5000/api/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           name: name,
-          image: capturedImage,
-          isRegistration: true
+          image: capturedImage
         })
       });
       
       const data = await response.json();
       if (data.success) {
-        setProfilePicture(capturedImage);
+        // Fetch and display profile picture
+        const picResponse = await fetch(`http://localhost:5000/api/profile-picture/${data.userId}`);
+        const picData = await picResponse.json();
+        if (picData.success) {
+          setProfilePicture(picData.image);
+        }
+        // Reset form for new registration
         setName('');
         setMessage('Registration successful! You can register another person now.');
+        // Stop the current video stream
         if (videoRef.current && videoRef.current.srcObject) {
           const tracks = videoRef.current.srcObject.getTracks();
           tracks.forEach(track => track.stop());
         }
+        // Clear the video element
         if (videoRef.current) {
           videoRef.current.srcObject = null;
         }
@@ -197,24 +210,18 @@ function App() {
       
       const imageData = canvasRef.current.toDataURL('image/jpeg');
       
-      const response = await fetch(API_URL, {
+      const response = await fetch('http://localhost:5000/api/verify', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          image: imageData,
-          isRegistration: false
+          image: imageData
         })
       });
       
       const data = await response.json();
-      if (data.success) {
-        setMessage(`Welcome back, ${data.matchedUser.name}!`);
-        setProfilePicture(data.matchedUser.profilePicture);
-      } else {
-        setMessage(data.message);
-      }
+      setMessage(data.message);
     } catch (err) {
       setMessage('Error: ' + err.message);
     } finally {
