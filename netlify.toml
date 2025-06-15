@@ -1,21 +1,31 @@
+# Global settings applied to the whole site
 [build]
-  base = "frontend"
-  command = "npm run build"
-  publish = "frontend"
+  command = "cd frontend && npm install && npm run build"
+  publish = "frontend/build"
   functions = "netlify/functions"
-  package = "frontend"
 
-[build.environment]
-  NODE_VERSION = "16"
+# Production context: all deploys from the Production branch set in your site's settings
+[context.production]
+  command = "cd frontend && npm install && npm run build"
 
+# Deploy Preview context: all deploys resulting from a pull/merge request
+[context.deploy-preview]
+  command = "cd frontend && npm install && npm run build"
+
+# Branch Deploy context: all deploys that are not from a pull/merge request
+[context.branch-deploy]
+  command = "cd frontend && npm install && npm run build"
+
+# Development context: used when running netlify dev
 [dev]
-  command = "npm start"
+  command = "cd frontend && npm start"
   port = 3000
   targetPort = 3000
-  publish = "frontend"
+  publish = "frontend/build"
   functions = "netlify/functions"
   functionsPort = 9999
 
+# Redirects for handling client-side routing and API requests
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
