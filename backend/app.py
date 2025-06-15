@@ -433,62 +433,119 @@ def register_user():
 def verify_user():
     try:
         data = request.json
+        if not data:
+            print("No data received in verify request")
+            return jsonify({
+                'success': False,
+                'message': 'No data received'
+            }), 400
+
         image_data = data.get('image')
-        
         if not image_data:
+            print("No image data in verify request")
             return jsonify({
                 'success': False,
                 'message': 'Image is required'
             }), 400
         
+        print("Processing verification image...")
         # Convert base64 image to numpy array
-        image_array = base64_to_image(image_data)
+        try:
+            image_array = base64_to_image(image_data)
+            print(f"Image converted successfully, shape: {image_array.shape}")
+        except Exception as e:
+            print(f"Error converting image: {str(e)}")
+            return jsonify({
+                'success': False,
+                'message': 'Invalid image format'
+            }), 400
         
         # Find face locations in the image
-        face_locations = face_recognition.face_locations(image_array)
+        try:
+            face_locations = face_recognition.face_locations(image_array)
+            print(f"Face locations found: {len(face_locations)}")
+        except Exception as e:
+            print(f"Error detecting faces: {str(e)}")
+            return jsonify({
+                'success': False,
+                'message': 'Error detecting face in image'
+            }), 400
         
         if not face_locations:
+            print("No face detected in verification image")
             return jsonify({
                 'success': False,
                 'message': 'No face detected in the image'
             }), 400
         
         if len(face_locations) > 1:
+            print(f"Multiple faces detected: {len(face_locations)}")
             return jsonify({
                 'success': False,
                 'message': 'Multiple faces detected. Please ensure only one face is visible.'
             }), 400
         
         # Get face encoding
-        face_encoding = face_recognition.face_encodings(image_array, face_locations)[0]
+        try:
+            face_encoding = face_recognition.face_encodings(image_array, face_locations)[0]
+            print("Face encoding generated successfully")
+        except Exception as e:
+            print(f"Error generating face encoding: {str(e)}")
+            return jsonify({
+                'success': False,
+                'message': 'Error processing face features'
+            }), 400
         
         # Load user data
-        users = load_user_data()
+        try:
+            users = load_user_data()
+            print(f"Loaded {len(users)} registered users")
+        except Exception as e:
+            print(f"Error loading user data: {str(e)}")
+            return jsonify({
+                'success': False,
+                'message': 'Error accessing user database'
+            }), 500
+        
+        if not users:
+            print("No registered users found")
+            return jsonify({
+                'success': False,
+                'message': 'No registered users found'
+            }), 404
         
         # Compare with stored face encodings
         for user_id, user_data in users.items():
-            stored_encoding = np.array(user_data['faceEncoding'])
-            # Compare face encodings
-            match = face_recognition.compare_faces([stored_encoding], face_encoding, tolerance=0.6)[0]
-            
-            if match:
-                return jsonify({
-                    'success': True,
-                    'message': 'Face verified successfully',
-                    'userId': user_id,
-                    'name': user_data['name']
-                })
+            try:
+                stored_encoding = np.array(user_data['faceEncoding'])
+                # Compare face encodings
+                match = face_recognition.compare_faces([stored_encoding], face_encoding, tolerance=0.6)[0]
+                
+                if match:
+                    print(f"Face verified successfully for user: {user_data['name']}")
+                    return jsonify({
+                        'success': True,
+                        'message': 'Face verified successfully',
+                        'userId': user_id,
+                        'name': user_data['name']
+                    })
+            except Exception as e:
+                print(f"Error comparing with user {user_id}: {str(e)}")
+                continue
         
+        print("No matching face found")
         return jsonify({
             'success': False,
             'message': 'Face not recognized'
         }), 404
     
     except Exception as e:
+        print(f"Unexpected error in verify_user: {str(e)}")
+        print(f"Traceback: {traceback.format_exc()}")
         return jsonify({
             'success': False,
-            'message': str(e)
-        }), 400
+            'message': 'An unexpected error occurred'
+        }), 500
 
 # Add new endpoint to get profile picture
 @app.route('/api/profile-picture/<user_id>', methods=['GET'])
