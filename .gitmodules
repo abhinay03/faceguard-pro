@@ -1,4 +1,0 @@
-[submodule "frontend"]
-    path = frontend
-    url = https://github.com/abhinay03/faceguard-pro.git
-    branch = main 
