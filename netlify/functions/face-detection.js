@@ -1,6 +1,7 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const { createUser, saveFaceEncoding, getAllFaceEncodings, logLoginAttempt } = require('./utils/db');
 
 // Create user_data directory if it doesn't exist
 const userDataDir = path.join(__dirname, '../../user_data');
@@ -20,7 +21,7 @@ exports.handler = async (event, context) => {
     try {
         // Parse the request body
         const body = JSON.parse(event.body);
-        const { image } = body;
+        const { image, name, isRegistration } = body;
 
         if (!image) {
             return {
@@ -37,7 +38,8 @@ exports.handler = async (event, context) => {
         // Run face detection using Python
         const pythonProcess = spawn('python', [
             path.join(__dirname, '../../backend/face_detection.py'),
-            tempImagePath
+            tempImagePath,
+            isRegistration ? '--registration' : '--verification'
         ]);
 
         let result = '';
@@ -51,8 +53,8 @@ exports.handler = async (event, context) => {
             error += data.toString();
         });
 
-        return new Promise((resolve, reject) => {
-            pythonProcess.on('close', (code) => {
+        return new Promise(async (resolve, reject) => {
+            pythonProcess.on('close', async (code) => {
                 // Clean up temporary file
                 fs.unlinkSync(tempImagePath);
 
@@ -69,6 +71,27 @@ exports.handler = async (event, context) => {
 
                 try {
                     const detectionResult = JSON.parse(result);
+                    
+                    // Handle registration
+                    if (isRegistration && detectionResult.success) {
+                        const user = await createUser(name);
+                        await saveFaceEncoding(
+                            user.id,
+                            Buffer.from(detectionResult.encoding),
+                            Buffer.from(imageData, 'base64')
+                        );
+                        detectionResult.userId = user.id;
+                    }
+                    
+                    // Handle verification
+                    if (!isRegistration && detectionResult.matchedUser) {
+                        await logLoginAttempt(
+                            detectionResult.matchedUser.id,
+                            detectionResult.success,
+                            detectionResult.confidence
+                        );
+                    }
+
                     resolve({
                         statusCode: 200,
                         body: JSON.stringify(detectionResult)
@@ -77,7 +100,7 @@ exports.handler = async (event, context) => {
                     resolve({
                         statusCode: 500,
                         body: JSON.stringify({
-                            error: 'Failed to parse detection result',
+                            error: 'Failed to process detection result',
                             details: e.message
                         })
                     });
