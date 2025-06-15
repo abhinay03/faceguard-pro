@@ -4,6 +4,11 @@
   publish = "frontend/build"
   functions = "netlify/functions"
 
+[build.environment]
+  NODE_VERSION = "16"
+  NPM_FLAGS = "--legacy-peer-deps"
+  GENERATE_SOURCEMAP = "false"
+
 # Production context: all deploys from the Production branch set in your site's settings
 [context.production]
   command = "cd frontend && npm install && npm run build"
