@@ -1,6 +1,6 @@
 [build]
   base = "."
-  command = "cd frontend && npm install && npm run build"
+  command = "cd frontend && npm install --include=dev && npm run build"
   publish = "frontend/build"
   functions = "netlify/functions"
 
@@ -8,6 +8,7 @@
   NODE_VERSION = "18"
   NODE_ENV = "production"
   GENERATE_SOURCEMAP = "false"
+  CI = "false"
 
 [[redirects]]
   from = "/*"
