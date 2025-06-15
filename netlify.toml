@@ -1,10 +1,13 @@
 [build]
-  command = "npm run build"
+  base = "."
+  command = "cd frontend && npm install && npm run build"
   publish = "frontend/build"
   functions = "netlify/functions"
 
 [build.environment]
   NODE_VERSION = "16"
+  NPM_FLAGS = "--legacy-peer-deps"
+  GENERATE_SOURCEMAP = "false"
 
 [[redirects]]
   from = "/*"
