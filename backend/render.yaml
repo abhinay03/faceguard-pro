@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: faceguard-backend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /api/detect-face
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9
