@@ -62,25 +62,86 @@
 }
 
 .preview-container {
+  position: relative;
   width: 640px;
   height: 480px;
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background-color: #1a1d24;
 }
 
-.preview-container img {
-  max-width: 100%;
-  max-height: 400px;
-  border-radius: 4px;
+.preview-image-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-image-container img {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform-origin: center center;
+  will-change: transform;
+}
+
+.preview-face-outline {
+  position: absolute;
+  width: 280px;
+  height: 360px;
+  border: 2px solid rgba(97, 218, 251, 0.5);
+  border-radius: 50% 50% 45% 45%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 10px rgba(97, 218, 251, 0.3);
+  pointer-events: none;
+  z-index: 2;
 }
 
 .confirmation-buttons {
+  position: absolute;
+  bottom: 20px;
+  left: 0;
+  right: 0;
   display: flex;
-  gap: 10px;
-  margin-top: 20px;
+  justify-content: center;
+  gap: 20px;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 3;
+}
+
+.confirmation-buttons button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  background: #4CAF50;
+  color: white;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background 0.3s;
+}
+
+.confirmation-buttons button:last-child {
+  background: #f44336;
+}
+
+.confirmation-buttons button:hover {
+  opacity: 0.9;
+}
+
+.confirmation-buttons button:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
 }
 
 .face-detected-indicator {

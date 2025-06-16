@@ -11,12 +11,14 @@ function App() {
   const [profilePicture, setProfilePicture] = useState(null);
   const [facePosition, setFacePosition] = useState({ x: 0, y: 0, scale: 1 });
   const [isFaceCentered, setIsFaceCentered] = useState(false);
+  const [serverPort, setServerPort] = useState(8000);
   const [faceQuality, setFaceQuality] = useState({
     eyesOpen: false,
     isSmiling: false,
     isWellLit: false,
     isIdealLighting: false
   });
+  const [previewTransform, setPreviewTransform] = useState({ x: 0, y: 0, scale: 1 });
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const detectionInterval = useRef(null);
@@ -32,6 +34,37 @@ function App() {
       setMessage('Error accessing camera: ' + err.message);
     }
   };
+
+  // Function to try different ports
+  const tryServerPort = async (port) => {
+    try {
+      const response = await fetch(`http://localhost:${port}/api/detect-face`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ image: 'test' })
+      });
+      return response.ok;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  // Detect server port on component mount
+  useEffect(() => {
+    const detectPort = async () => {
+      const ports = [8000, 8080, 8888, 9000, 9090];
+      for (const port of ports) {
+        if (await tryServerPort(port)) {
+          setServerPort(port);
+          console.log(`Server detected on port ${port}`);
+          break;
+        }
+      }
+    };
+    detectPort();
+  }, []);
 
   const startFaceDetection = () => {
     if (detectionInterval.current) {
@@ -53,7 +86,7 @@ function App() {
         const imageData = canvasRef.current.toDataURL('image/jpeg', 0.8);
         console.log('Sending image for detection, size:', imageData.length);
 
-        const response = await fetch('http://localhost:5000/api/detect-face', {
+        const response = await fetch(`http://localhost:${serverPort}/api/detect-face`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -85,17 +118,21 @@ function App() {
         // Update face position if detected
         if (data.facePosition) {
           setFacePosition(data.facePosition);
-          // Check if face is centered (within 10% of center)
+          // Check if face is centered (within 30% of center)
           const isCentered = 
-            Math.abs(data.facePosition.x) < 0.1 && 
-            Math.abs(data.facePosition.y) < 0.1 &&
-            Math.abs(data.facePosition.scale - 1) < 0.1;
+            Math.abs(data.facePosition.x) < 0.3 && 
+            Math.abs(data.facePosition.y) < 0.3 &&
+            Math.abs(data.facePosition.scale - 1) < 0.3;
+          
+          console.log('Face position:', data.facePosition);
+          console.log('Is centered:', isCentered);
+          
           setIsFaceCentered(isCentered);
         }
       } catch (err) {
         console.error('Face detection error:', err);
         if (err.message.includes('Failed to fetch') || err.message.includes('ERR_CONNECTION_REFUSED')) {
-          setMessage('Cannot connect to server. Please make sure the backend server is running.');
+          setMessage(`Cannot connect to server on port ${serverPort}. Please make sure the backend server is running.`);
           stopFaceDetection();
         } else {
           setIsFaceDetected(false);
@@ -121,16 +158,18 @@ function App() {
   const captureImage = async () => {
     if (!videoRef.current || !canvasRef.current) return;
     
-    // Only capture if face is centered
-    if (!isFaceCentered) {
-      setMessage('Please center your face in the frame');
-      return;
-    }
-    
     const context = canvasRef.current.getContext('2d');
     canvasRef.current.width = videoRef.current.videoWidth;
     canvasRef.current.height = videoRef.current.videoHeight;
     context.drawImage(videoRef.current, 0, 0);
+    
+    // Calculate the centering transform
+    const newTransform = {
+      x: -facePosition.x * 50,
+      y: -facePosition.y * 50,
+      scale: 1/facePosition.scale
+    };
+    setPreviewTransform(newTransform);
     
     // Get the image data as base64
     const imageData = canvasRef.current.toDataURL('image/jpeg');
@@ -146,7 +185,7 @@ function App() {
     setMessage('Processing...');
     
     try {
-      const response = await fetch('http://localhost:5000/api/register', {
+      const response = await fetch(`http://localhost:${serverPort}/api/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -160,7 +199,7 @@ function App() {
       const data = await response.json();
       if (data.success) {
         // Fetch and display profile picture
-        const picResponse = await fetch(`http://localhost:5000/api/profile-picture/${data.userId}`);
+        const picResponse = await fetch(`http://localhost:${serverPort}/api/profile-picture/${data.userId}`);
         const picData = await picResponse.json();
         if (picData.success) {
           setProfilePicture(picData.image);
@@ -210,7 +249,7 @@ function App() {
       
       const imageData = canvasRef.current.toDataURL('image/jpeg');
       
-      const response = await fetch('http://localhost:5000/api/verify', {
+      const response = await fetch(`http://localhost:${serverPort}/api/verify`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -245,7 +284,17 @@ function App() {
         <div className="video-container">
           {showConfirmation ? (
             <div className="preview-container">
-              <img src={capturedImage} alt="Captured face" />
+              <div className="preview-image-container">
+                <img 
+                  src={capturedImage} 
+                  alt="Captured face" 
+                  style={{
+                    transform: `translate(${previewTransform.x}%, ${previewTransform.y}%) scale(${previewTransform.scale})`,
+                    transition: 'transform 0.5s ease-out'
+                  }}
+                />
+                <div className="preview-face-outline"></div>
+              </div>
               <div className="confirmation-buttons">
                 <button onClick={confirmRegistration} disabled={isLoading}>
                   Confirm Registration
@@ -265,7 +314,7 @@ function App() {
                   style={{ width: '640px', height: '480px' }}
                 />
                 <div className="alignment-grid" style={{
-                  transform: `translate(${facePosition.x * 100}px, ${facePosition.y * 100}px) scale(${facePosition.scale})`
+                  transform: `translate(${facePosition.x * 50}%, ${facePosition.y * 50}%) scale(${facePosition.scale})`
                 }}>
                   <div className="face-outline"></div>
                   <div className="face-guide eyes"></div>
@@ -313,7 +362,7 @@ function App() {
               onClick={captureImage}
               disabled={!name || isLoading || !isFaceDetected || 
                 !faceQuality.eyesOpen || !faceQuality.isSmiling || 
-                !faceQuality.isWellLit || !isFaceCentered}
+                !faceQuality.isWellLit}
             >
               Register Face
             </button>

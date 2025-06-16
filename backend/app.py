@@ -266,8 +266,8 @@ def detect_face():
             face_center_y = (face_rect.top() + face_rect.bottom()) / 2
             
             # Calculate normalized position (-1 to 1)
-            pos_x = (face_center_x - image_center_x) / image_center_x
-            pos_y = (face_center_y - image_center_y) / image_center_y
+            pos_x = (face_center_x - image_center_x) / (image_array.shape[1] / 2)
+            pos_y = (face_center_y - image_center_y) / (image_array.shape[0] / 2)
             
             # Calculate face size relative to ideal size
             face_width = face_rect.right() - face_rect.left()
@@ -275,6 +275,12 @@ def detect_face():
             ideal_size = min(image_array.shape[0], image_array.shape[1]) * 0.4  # 40% of smaller dimension
             current_size = max(face_width, face_height)
             scale = current_size / ideal_size
+            
+            print(f"Face position calculation:")
+            print(f"Image center: ({image_center_x}, {image_center_y})")
+            print(f"Face center: ({face_center_x}, {face_center_y})")
+            print(f"Normalized position: ({pos_x}, {pos_y})")
+            print(f"Scale: {scale}")
             
             face_position = {
                 'x': float(pos_x),
@@ -583,7 +589,19 @@ def get_profile_picture(user_id):
 if __name__ == '__main__':
     try:
         print("Starting Flask server...")
-        app.run(debug=True, host='0.0.0.0', port=5000)
+        # Try higher port numbers that are less likely to be restricted
+        ports = [8000, 8080, 8888, 9000, 9090]
+        for port in ports:
+            try:
+                print(f"Attempting to start server on port {port}...")
+                app.run(debug=True, host='0.0.0.0', port=port)
+                break
+            except OSError as e:
+                if "address already in use" in str(e).lower() or "access permissions" in str(e).lower():
+                    print(f"Port {port} is not available, trying next port...")
+                    continue
+                else:
+                    raise e
     except Exception as e:
         print(f"Error starting Flask server: {str(e)}")
         print(f"Traceback: {traceback.format_exc()}")
